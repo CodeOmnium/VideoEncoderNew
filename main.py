@@ -99,6 +99,11 @@ async def compress_video(context: ContextTypes.DEFAULT_TYPE, chat_id: int, messa
     await context.bot.edit_message_text(chat_id=chat_id, message_id=message_id, text="Compressing video... This may take a few minutes.")
 
     try:
+        # Group private codec options under -x264-params for correctness
+        x264_params = {
+            'ref': 1
+        }
+
         (
             ffmpeg
             .input(input_path)
@@ -110,7 +115,7 @@ async def compress_video(context: ContextTypes.DEFAULT_TYPE, chat_id: int, messa
                     acodec='aac', 
                     strict='experimental', 
                     pix_fmt='yuv420p',
-                    **{'ref': 1} # Force 1 reference frame for speed
+                    x264_params=x264_params
                    )
             .run(overwrite_output=True)
         )
@@ -149,7 +154,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Sends a welcome message."""
     await update.message.reply_text(
         "Hi! I'm a video compressor bot.\n\n"
-        "Send me a video, and I'll compress it to 360p for you."
+        "Send me a video, and I'll compress it to 480p for you."
     )
 
 import re
