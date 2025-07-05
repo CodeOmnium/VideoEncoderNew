@@ -99,11 +99,6 @@ async def compress_video(context: ContextTypes.DEFAULT_TYPE, chat_id: int, messa
     await context.bot.edit_message_text(chat_id=chat_id, message_id=message_id, text="Compressing video... This may take a few minutes.")
 
     try:
-        # Group private codec options under -x264-params for correctness
-        x264_params = {
-            'ref': 1
-        }
-
         (
             ffmpeg
             .input(input_path)
@@ -115,7 +110,7 @@ async def compress_video(context: ContextTypes.DEFAULT_TYPE, chat_id: int, messa
                     acodec='aac', 
                     strict='experimental', 
                     pix_fmt='yuv420p',
-                    x264_params=x264_params
+                    **{'x264-params': 'ref=1'} # Pass codec-private params correctly
                    )
             .run(overwrite_output=True)
         )
