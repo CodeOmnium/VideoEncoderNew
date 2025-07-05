@@ -1,75 +1,75 @@
-# Telegram Video Compressor Bot
+# Smart Telegram Video Compressor Bot
 
-A simple yet powerful Telegram bot that compresses videos sent by users to a more manageable 360p resolution. It's designed to be easy to deploy and use.
+A powerful and intelligent Telegram bot that dramatically reduces video file sizes. Inspired by the efficiency of popular compression bots, this tool is optimized for speed and effectiveness, making it perfect for personal use or deployment on services like Replit and Render.
 
-## Features
+## Key Features
 
-- **Video Compression:** Automatically compresses uploaded videos to 360p using FFmpeg.
-- **Progress Updates:** Provides real-time feedback to the user on the status of their download, compression, and upload.
-- **Large File Support:** Built to handle large video files, with progress callbacks for both downloading and uploading.
-- **Easy to Deploy:** Can be run locally for testing or deployed to any server with Python and FFmpeg support.
-- **Secure:** Keeps your API keys and tokens safe using a `.env` file.
+- **Intelligent Compression:** Uses a fast, single-pass CRF (Constant Rate Factor) method with aggressive settings (`crf=30`, `ref=1`) to significantly reduce file size while maintaining 480p quality.
+- **High-Speed Encoding:** The FFmpeg parameters are heavily optimized for speed, allowing it to process long videos in a fraction of the time of standard configurations.
+- **Robust File Handling:** Automatically handles a wide variety of video formats and corrects for unreliable or malformed filenames sent by Telegram clients.
+- **Real-Time Progress:** Provides clear, throttled status updates on downloading, compressing, and uploading to avoid API rate limits.
+- **Large File Support:** Built with `telethon` for its superior handling of large file downloads and uploads.
+- **24/7 Hosting Ready:** Includes a lightweight Flask web server to support "keep-alive" services, essential for free-tier hosting platforms.
+- **Recovery Script:** Comes with a `recover.py` utility to manually re-process a video if the bot is interrupted.
 
 ## How It Works
 
-1.  A user sends a video file to the bot.
-2.  The bot downloads the video to a local `downloads/` directory.
-3.  It then uses **FFmpeg** to compress the video, saving the new file to a `processed/` directory.
-4.  Finally, the bot uploads the compressed video back to the user.
-5.  Temporary files are cleaned up to save disk space.
+1.  A user sends any video to the bot.
+2.  The bot downloads the video, sanitizing the filename to prevent errors.
+3.  It uses **FFmpeg** with a highly-optimized CRF strategy to compress the video to 480p, saving the result to a temporary directory.
+4.  The bot uploads the newly compressed, much smaller video back to the user.
+5.  All temporary files are automatically deleted to conserve disk space.
 
-## Installation & Running
+## Quickstart: Deploying on Replit
 
-Follow these steps to run the bot on your local machine.
+This bot is pre-configured for a seamless experience on Replit.
 
-### 1. Prerequisites
+1.  **Fork the Repository:** Click the "Fork" button on this GitHub page to create your own copy.
+2.  **Create a Replit Account:** If you don't have one, sign up at [Replit.com](https://replit.com).
+3.  **Import from GitHub:** On your Replit dashboard, click **"Create Repl"** and then use the **"Import from GitHub"** option to import your forked repository.
+4.  **Configure Secrets:**
+    - In the Replit workspace, go to the **"Secrets"** tab in the left-hand menu.
+    - Add the following three secrets. You can get these from [my.telegram.org](https://my.telegram.org) and by talking to [@BotFather](https://t.me/BotFather) on Telegram.
+      - `TELEGRAM_BOT_TOKEN` = `Your bot token here`
+      - `API_ID` = `Your API ID here`
+      - `API_HASH` = `Your API hash here`
+5.  **Run the Bot:**
+    - Click the main **"Run"** button at the top. Replit will automatically install all dependencies (including FFmpeg) and start the bot.
+    - Your bot is now live!
 
-- **Python 3.8+**
-- **FFmpeg:** You must have FFmpeg installed and accessible in your system's PATH.
-  - **Windows:** Follow the [official guide](https://www.gyan.dev/ffmpeg/builds/) to download and add FFmpeg to your PATH.
-  - **Linux (Debian/Ubuntu):** `sudo apt update && sudo apt install ffmpeg`
-  - **macOS (using Homebrew):** `brew install ffmpeg`
+### Keeping the Bot Alive (24/7)
 
-### 2. Clone & Set Up the Project
+To keep your bot running on Replit's free tier, you need to use a "keep-alive" service.
+
+1.  When you run the bot, a web view will open in your Replit workspace. Copy the URL from the address bar.
+2.  Sign up for a free monitoring service like [UptimeRobot](https://uptimerobot.com/).
+3.  In UptimeRobot, create a new "HTTP(s)" monitor and paste the URL from your Replit web view. Set it to ping your bot every 5-10 minutes.
+
+This will ensure your bot stays awake and responsive 24/7.
+
+## Local Installation
+
+If you prefer to run the bot on your own machine:
 
 ```bash
-# Clone this repository (or download the source)
+# Clone your forked repository
 git clone https://github.com/your-username/your-repo-name.git
 cd your-repo-name
 
 # Create and activate a Python virtual environment
 python -m venv venv
-# On Windows
-.\venv\Scripts\activate
-# On macOS/Linux
-source venv/bin/activate
+source venv/bin/activate  # On macOS/Linux
+# .\venv\Scripts\activate  # On Windows
 
-# Install the required dependencies
+# Install dependencies
 pip install -r requirements.txt
-```
 
-### 3. Configure Your Credentials
+# Create a .env file and add your API credentials
+# (See "Configure Secrets" in the Replit section above)
 
-1.  **Get API Credentials:**
-    - **API ID & Hash:** Log in to [my.telegram.org](https://my.telegram.org) to get your `api_id` and `api_hash`.
-    - **Bot Token:** Create a new bot by talking to [@BotFather](https://t.me/BotFather) on Telegram to get your `TELEGRAM_BOT_TOKEN`.
+# Make sure you have FFmpeg installed on your system
+# (e.g., 'sudo apt install ffmpeg' on Debian/Ubuntu)
 
-2.  **Create the `.env` file:**
-    - Rename the `.env.example` file (if you have one) or create a new file named `.env`.
-    - Add your credentials to it like this:
-
-    ```env
-    TELEGRAM_BOT_TOKEN="YOUR_BOT_TOKEN_HERE"
-    API_ID="YOUR_API_ID_HERE"
-    API_HASH="YOUR_API_HASH_HERE"
-    ```
-
-### 4. Run the Bot
-
-With your virtual environment activated, start the bot:
-
-```bash
+# Run the bot
 python main.py
 ```
-
-Your bot is now running! Send it a video on Telegram to test it out.
