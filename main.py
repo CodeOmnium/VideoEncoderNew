@@ -1,14 +1,17 @@
-
 import os
 import time
 import asyncio
 import ffmpeg
 import httpx
+import re
+import mimetypes
 from telegram import Update
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
 from telethon import TelegramClient
 from telethon.tl.types import DocumentAttributeVideo
 from dotenv import load_dotenv
+from flask import Flask
+from threading import Thread
 
 # Load environment variables
 load_dotenv()
@@ -30,6 +33,13 @@ PROCESSED_PATH = "processed/"
 DOWNLOAD_CHUNK_SIZE = 16 * 1024  # 16 KB
 PROGRESS_UPDATE_INTERVAL = 15  # seconds
 HTTPX_TIMEOUT = 300  # seconds (5 minutes) - increased for large files
+
+# Video compression settings
+TARGET_HEIGHT = 480
+CRF_VALUE = 30
+PRESET = 'ultrafast'
+REFS = 1
+OUTPUT_CONTAINER = 'mkv'  # Output container format
 
 # --- Helper Functions ---
 def format_bytes(size):
@@ -95,22 +105,23 @@ async def download_video(context: ContextTypes.DEFAULT_TYPE, chat_id: int, messa
     await send_progress_message(context, chat_id, message_id, start_time, total_size, total_size, "Download Complete", force=True)
 
 async def compress_video(context: ContextTypes.DEFAULT_TYPE, chat_id: int, message_id: int, input_path: str, output_path: str):
-    """Compresses a video using a fast, CRF-based method modeled on successful bots."""
-    await context.bot.edit_message_text(chat_id=chat_id, message_id=message_id, text="Compressing video... This may take a few minutes.")
+    """Compresses a video using a fast, CRF-based method and outputs in MKV container format."""
+    await context.bot.edit_message_text(chat_id=chat_id, message_id=message_id, text="Compressing video to MKV format... This may take a few minutes.")
 
     try:
         (
             ffmpeg
             .input(input_path)
             .output(output_path, 
-                    vf='scale=-2:480', 
+                    vf=f'scale=-2:{TARGET_HEIGHT}', 
                     vcodec='libx264', 
-                    preset='ultrafast', 
-                    crf=30, 
+                    preset=PRESET, 
+                    crf=CRF_VALUE, 
                     acodec='aac', 
                     strict='experimental', 
                     pix_fmt='yuv420p',
-                    **{'x264-params': 'ref=1'} # Pass codec-private params correctly
+                    refs=REFS,  # Fixed: Use 'refs' instead of 'x264-params'
+                    format='matroska'  # Force MKV (Matroska) container format
                    )
             .run(overwrite_output=True)
         )
@@ -142,18 +153,15 @@ async def upload_video(context: ContextTypes.DEFAULT_TYPE, chat_id: int, message
     # Ensure the final "Upload Complete" message is sent
     await send_progress_message(context, chat_id, message_id, start_time, file_size, file_size, "Upload Complete!", force=True)
 
-
 # --- Command & Message Handlers ---
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Sends a welcome message."""
     await update.message.reply_text(
         "Hi! I'm a video compressor bot.\n\n"
-        "Send me a video, and I'll compress it to 480p for you."
+        "Send me a video, and I'll compress it to 480p in MKV format for you.\n"
+        "MKV format provides better compression and compatibility!"
     )
-
-import re
-import mimetypes
 
 async def handle_video(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """The main handler for receiving and processing videos."""
@@ -178,18 +186,20 @@ async def handle_video(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
     if original_filename:
         base_name = os.path.splitext(original_filename)[0]
     else:
-        base_name = f"video_{time.strftime("%Y-%m-%d_%H-%M-%S")}"
+        base_name = f"video_{time.strftime('%Y-%m-%d_%H-%M-%S')}"
 
     # 3. Sanitize the base name
     sanitized_base_name = re.sub(r'[\/*?:"<>|&]', "", base_name)
     sanitized_base_name = re.sub(r'\s+', '_', sanitized_base_name)
     sanitized_base_name = sanitized_base_name.strip('_. ')
 
-    # 4. Combine sanitized base name and reliable extension
+    # 4. Combine sanitized base name and reliable extension (force MKV output)
     safe_filename = f"{sanitized_base_name}{ext}"
     
     input_path = os.path.join(DOWNLOAD_PATH, safe_filename)
-    output_path = os.path.join(PROCESSED_PATH, f"processed_{safe_filename}")
+    # Force MKV output format
+    output_filename = f"processed_{sanitized_base_name}.{OUTPUT_CONTAINER}"
+    output_path = os.path.join(PROCESSED_PATH, output_filename)
 
     try:
         os.makedirs(DOWNLOAD_PATH, exist_ok=True)
@@ -198,7 +208,6 @@ async def handle_video(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
         await download_video(context, chat_id, message_id, telethon_message, input_path)
         await compress_video(context, chat_id, message_id, input_path, output_path)
         await upload_video(context, chat_id, message_id, output_path)
-
 
     except Exception as e:
         print(f"An error occurred: {e}")
@@ -218,37 +227,6 @@ async def handle_other_messages(update: Update, context: ContextTypes.DEFAULT_TY
     """Handles non-video messages."""
     await update.message.reply_text("Please send me a video file to compress.")
 
-def main() -> None:
-    """Start the bot."""
-    print("Starting bot...")
-
-    # Initialize Telethon client
-    telethon_client = TelegramClient('bot_session', API_ID, API_HASH)
-
-    # Build the application
-    application_builder = Application.builder().token(TELEGRAM_BOT_TOKEN)
-    application_builder.http_version("1.1").get_updates_http_version("1.1")
-    application = application_builder.build()
-
-    # Pass telethon_client to context
-    application.bot_data['telethon_client'] = telethon_client
-
-    application.add_handler(CommandHandler("start", start))
-    application.add_handler(MessageHandler(filters.VIDEO, handle_video))
-    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_other_messages))
-
-    # Start the bot
-    # The 'with' block will automatically log in the bot using the bot token
-    # This is crucial for non-interactive environments like Render
-    with telethon_client:
-        print("Telethon client started.")
-        application.run_polling()
-
-from flask import Flask
-from threading import Thread
-
-# ... (imports)
-
 # --- Keep-Alive Web Server ---
 app = Flask(__name__)
 
@@ -261,8 +239,6 @@ def run_web_server():
     port = int(os.environ.get('PORT', 8080))
     app.run(host='0.0.0.0', port=port)
 
-# ... (rest of the code)
-
 if __name__ == "__main__":
     
     # Start the keep-alive web server in a separate thread
@@ -272,8 +248,6 @@ if __name__ == "__main__":
     print("Keep-alive server started.")
 
     async def main():
-        # ... (rest of the main async function remains the same)
-        
         # Initialize Telethon client with a long timeout and start it
         telethon_client = TelegramClient(
             'bot_session', 

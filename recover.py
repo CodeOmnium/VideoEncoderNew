@@ -12,17 +12,18 @@ from main import (
     API_ID,
     API_HASH,
     DOWNLOAD_PATH,
-    PROCESSED_PATH
+    PROCESSED_PATH,
+    OUTPUT_CONTAINER
 )
 
 # --- ⚠️ USER CONFIGURATION - YOU MUST FILL THESE OUT ⚠️ ---
 
 # 1. The ID of the chat where the bot should send the file and messages.
 #    To get this, you can use a bot like @userinfobot.
-CHAT_ID = 7858468560  # <--- ❗️❗️❗️ REPLACE 0 WITH YOUR CHAT ID ❗️❗️❗️
+CHAT_ID = 0  # <--- ❗️❗️❗️ REPLACE 0 WITH YOUR CHAT ID ❗️❗️❗️
 
 # 2. The exact, full name of the video file that is in the 'downloads' folder.
-FILE_NAME = "Polymers & POC | L-02 NJ_247.mp4"  # <--- ❗️❗️❗️ REPLACE "" WITH THE FILENAME (e.g., "my_large_video.mp4") ❗️❗️❗️
+FILE_NAME = ""  # <--- ❗️❗️❗️ REPLACE "" WITH THE FILENAME (e.g., "my_large_video.mp4") ❗️❗️❗️
 
 # --------------------------------------------------------------------
 
@@ -51,7 +52,12 @@ async def main():
     context = MockContext(application)
 
     input_path = os.path.join(DOWNLOAD_PATH, FILE_NAME)
-    output_path = os.path.join(PROCESSED_PATH, f"processed_{FILE_NAME}")
+    
+    # Generate output filename with MKV extension
+    base_name = os.path.splitext(FILE_NAME)[0]
+    output_filename = f"processed_{base_name}.{OUTPUT_CONTAINER}"
+    output_path = os.path.join(PROCESSED_PATH, output_filename)
+    
     status_message = None
 
     # --- Run Recovery ---
@@ -65,11 +71,11 @@ async def main():
             # Send a new message to use for status updates
             status_message = await context.bot.send_message(
                 chat_id=CHAT_ID,
-                text=f"Recovering interrupted file: {FILE_NAME}"
+                text=f"Recovering interrupted file: {FILE_NAME}\nWill output as MKV format."
             )
             message_id = status_message.message_id
 
-            # 1. Compress the existing video
+            # 1. Compress the existing video to MKV format
             await compress_video(context, CHAT_ID, message_id, input_path, output_path)
 
             # 2. Upload the compressed video
