@@ -4,5 +4,3 @@ httpx==0.24.1
 telethon>=1.28.0
 python-dotenv
 Flask>=2.0
-ffmpeg
-telegram

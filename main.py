@@ -145,21 +145,20 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     )
 
 import re
-
-# ... (rest of the imports)
+import mimetypes
 
 def sanitize_filename(filename):
-    """Removes special characters from a filename to make it safe for shell commands, preserving the extension."""
+    """Removes special characters and cleans up a filename, preserving the extension."""
     # Split the filename into name and extension
     name, ext = os.path.splitext(filename)
     # Remove invalid characters from the name part
     sanitized_name = re.sub(r'[\/*?:"<>|&]', "", name)
     # Replace spaces with underscores
     sanitized_name = re.sub(r'\s+', '_', sanitized_name)
+    # Remove leading/trailing underscores, spaces, or dots from the name
+    sanitized_name = sanitized_name.strip('_. ')
     # Return the sanitized name with the original extension
     return f"{sanitized_name}{ext}"
-
-# ... (rest of the code)
 
 async def handle_video(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """The main handler for receiving and processing videos."""
@@ -174,8 +173,14 @@ async def handle_video(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
         await context.bot.edit_message_text(chat_id=chat_id, message_id=message_id, text="Sorry, I couldn't retrieve the file from this message.")
         return
 
-    # Sanitize the filename to prevent errors
+    # --- Robust Filename Handling ---
     original_filename = telethon_message.file.name
+    if not original_filename:
+        # If there's no filename, create one from the date and mime-type
+        mime_type = telethon_message.file.mime_type
+        ext = mimetypes.guess_extension(mime_type) or '.mp4' # Default to .mp4
+        original_filename = f"video_{time.strftime("%Y-%m-%d_%H-%M-%S")}{ext}"
+
     safe_filename = sanitize_filename(original_filename)
     
     input_path = os.path.join(DOWNLOAD_PATH, safe_filename)
