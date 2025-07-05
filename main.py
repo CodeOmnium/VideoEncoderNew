@@ -147,19 +147,6 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 import re
 import mimetypes
 
-def sanitize_filename(filename):
-    """Removes special characters and cleans up a filename, preserving the extension."""
-    # Split the filename into name and extension
-    name, ext = os.path.splitext(filename)
-    # Remove invalid characters from the name part
-    sanitized_name = re.sub(r'[\/*?:"<>|&]', "", name)
-    # Replace spaces with underscores
-    sanitized_name = re.sub(r'\s+', '_', sanitized_name)
-    # Remove leading/trailing underscores, spaces, or dots from the name
-    sanitized_name = sanitized_name.strip('_. ')
-    # Return the sanitized name with the original extension
-    return f"{sanitized_name}{ext}"
-
 async def handle_video(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """The main handler for receiving and processing videos."""
     chat_id = update.message.chat_id
@@ -173,15 +160,25 @@ async def handle_video(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
         await context.bot.edit_message_text(chat_id=chat_id, message_id=message_id, text="Sorry, I couldn't retrieve the file from this message.")
         return
 
-    # --- Robust Filename Handling ---
-    original_filename = telethon_message.file.name
-    if not original_filename:
-        # If there's no filename, create one from the date and mime-type
-        mime_type = telethon_message.file.mime_type
-        ext = mimetypes.guess_extension(mime_type) or '.mp4' # Default to .mp4
-        original_filename = f"video_{time.strftime("%Y-%m-%d_%H-%M-%S")}{ext}"
+    # --- Super Robust Filename Handling ---
+    # 1. Get the reliable extension from the mime type
+    mime_type = telethon_message.file.mime_type
+    ext = mimetypes.guess_extension(mime_type) or '.mp4' # Default to .mp4
 
-    safe_filename = sanitize_filename(original_filename)
+    # 2. Get the base filename, or create one if it doesn't exist
+    original_filename = telethon_message.file.name
+    if original_filename:
+        base_name = os.path.splitext(original_filename)[0]
+    else:
+        base_name = f"video_{time.strftime("%Y-%m-%d_%H-%M-%S")}"
+
+    # 3. Sanitize the base name
+    sanitized_base_name = re.sub(r'[\/*?:"<>|&]', "", base_name)
+    sanitized_base_name = re.sub(r'\s+', '_', sanitized_base_name)
+    sanitized_base_name = sanitized_base_name.strip('_. ')
+
+    # 4. Combine sanitized base name and reliable extension
+    safe_filename = f"{sanitized_base_name}{ext}"
     
     input_path = os.path.join(DOWNLOAD_PATH, safe_filename)
     output_path = os.path.join(PROCESSED_PATH, f"processed_{safe_filename}")
