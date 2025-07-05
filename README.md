@@ -34,7 +34,7 @@ Follow these steps to run the bot on your local machine.
 
 ```bash
 # Clone this repository (or download the source)
-git clone https://github.com/your-username/your-repo-name.git
+git clone https://github.com/CodeOmnium/VideoEncoderNew
 cd your-repo-name
 
 # Create and activate a Python virtual environment
