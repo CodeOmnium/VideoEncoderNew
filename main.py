@@ -95,23 +95,52 @@ async def download_video(context: ContextTypes.DEFAULT_TYPE, chat_id: int, messa
     await send_progress_message(context, chat_id, message_id, start_time, total_size, total_size, "Download Complete", force=True)
 
 async def compress_video(context: ContextTypes.DEFAULT_TYPE, chat_id: int, message_id: int, input_path: str, output_path: str):
-    """Compresses a video using FFmpeg."""
-    await context.bot.edit_message_text(chat_id=chat_id, message_id=message_id, text="Compressing video... This is CPU-intensive and may take a while on a free server.")
-    
+    """Compresses a video using a 2-pass method to target a specific bitrate."""
+    await context.bot.edit_message_text(chat_id=chat_id, message_id=message_id, text="Analyzing video for optimal compression...")
+
     try:
+        # --- Get Video Duration ---
+        probe = ffmpeg.probe(input_path)
+        duration = float(probe['format']['duration'])
+
+        # --- Calculate Target Bitrate ---
+        # Target size: 140MB per hour. Bitrate in bits/s.
+        target_total_bitrate = (140 * 1024 * 1024 * 8) / (60 * 60) # bits/s for 140MB/hr
+        audio_bitrate = 128 * 1024 # 128k
+        target_video_bitrate = int(target_total_bitrate - audio_bitrate)
+
+        # --- 2-Pass Encoding ---
+        ffmpeg_log_file = f"{input_path}.log"
+
+        # Pass 1
+        await context.bot.edit_message_text(chat_id=chat_id, message_id=message_id, text="Compressing... (Pass 1 of 2)")
         (
             ffmpeg
             .input(input_path)
-            .output(output_path, vf='scale=-2:360', vcodec='libx264', preset='ultrafast', crf=30, acodec='aac', strict='experimental', pix_fmt='yuv420p')
+            .output('null', vf='scale=-2:360', vcodec='libx264', preset='ultrafast', b_v=f'{target_video_bitrate}', pass_log_file=ffmpeg_log_file, pass_num=1, f='null')
             .run(overwrite_output=True)
         )
+
+        # Pass 2
+        await context.bot.edit_message_text(chat_id=chat_id, message_id=message_id, text="Compressing... (Pass 2 of 2)")
+        (
+            ffmpeg
+            .input(input_path)
+            .output(output_path, vf='scale=-2:360', vcodec='libx264', preset='ultrafast', b_v=f'{target_video_bitrate}', pass_log_file=ffmpeg_log_file, pass_num=2, acodec='aac', strict='experimental', pix_fmt='yuv420p')
+            .run(overwrite_output=True)
+        )
+
     except ffmpeg.Error as e:
-        # Log the full error to the console for debugging
         stderr = e.stderr.decode() if e.stderr else "No stderr output from FFmpeg."
         print(f"FFmpeg error:\n{stderr}")
         error_message = f"Error processing video. The server might be out of resources for a file this large."
         await context.bot.edit_message_text(chat_id=chat_id, message_id=message_id, text=error_message)
         raise
+    finally:
+        # --- Cleanup FFmpeg log files ---
+        for file in os.listdir('.'):
+            if file.startswith(os.path.basename(ffmpeg_log_file)):
+                os.remove(file)
 
     await context.bot.edit_message_text(chat_id=chat_id, message_id=message_id, text="Processing complete.")
 
